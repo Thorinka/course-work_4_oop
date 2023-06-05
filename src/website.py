@@ -6,16 +6,32 @@ import requests
 
 
 class Website(ABC):
-
+    """
+    Абстрактный класс для работы с API
+    """
     @abstractmethod
-    def get_vacancies(self, page: int, keyword: str):
+    def _get_vacancies(self, page: int, keyword: str):
+        """
+        Абстрактный метод для получения вакансий по API
+        :param page: количество страниц, по которым будет осуществляться поиск
+        :param keyword: наименование вакансии
+        :return:
+        """
         pass
 
 
 class HeadHunter(Website):
-    params = []
+    """
+    Класс для работы с HeadHunter по API
+    """
 
-    def get_vacancies(self, page: int, keyword: str):
+    def _get_vacancies(self, page: int, keyword: str):
+        """
+        Метод для обращения по API к HeadHunter
+        :param page: количество страниц для поиска
+        :param keyword: наименование вакансии
+        :return: неформатированный json response
+        """
         params = {
             "text": keyword,
             "page": page,
@@ -26,10 +42,15 @@ class HeadHunter(Website):
         return response.content
 
     def json_vacancies(self, keyword: str):
+        """
+        Получение нужных вакансий в формате списка словарей Python - работа с JSON
+        :param keyword: наименование вакансии
+        :return: список вакансий list[dict]
+        """
         js_list = []
 
         for page in range(0, 20):
-            js_obj = json.loads(self.get_vacancies(page, keyword))
+            js_obj = json.loads(self._get_vacancies(page, keyword))
             js_list.extend(js_obj['items'])
             if js_obj['pages'] - page <= 1:
                 break
@@ -37,12 +58,22 @@ class HeadHunter(Website):
 
 
 class SuperJob(Website):
+    """
+    Класс для работы с SuperJob по API
+    """
+
     API = "v3.r.137581409.57abcbb029118ca90d805beaf6f5a56a99325625.130bce891e059b0dbc588320ddc041f34547d097"
 
     def __init__(self):
         pass
 
-    def get_vacancies(self, page: int, keyword: str):
+    def _get_vacancies(self, page: int, keyword: str):
+        """
+        Метод для обращения по API к SuperJob
+        :param page: количество страниц для поиска
+        :param keyword: наименование вакансии
+        :return: неформатированный json response
+        """
         header = {
             "Host": "api.superjob.ru",
             "X-Api-App-Id": SuperJob.API,
@@ -61,17 +92,35 @@ class SuperJob(Website):
         return response.content
 
     def json_vacancies(self, keyword: str):
+        """
+        Получение нужных вакансий в формате списка словарей Python - работа с JSON
+        :param keyword: наименование вакансии
+        :return: список вакансий list[dict]
+        """
         js_list = []
 
         for page in range(0, 20):
-            js_obj = json.loads(self.get_vacancies(page, keyword))
+            js_obj = json.loads(self._get_vacancies(page, keyword))
             js_list.extend(js_obj["objects"])
         return js_list
 
 
 class Vacancies:
+    """
+    Класс для работы с вакансиями
+    """
     def __init__(self, name=None, salary=None, salary_to=None, salary_currency=None,
                  town=None, experience=None, url=None):
+        """
+        Инициализация вакансии
+        :param name: наименование вакансии
+        :param salary: минимальная зарплата
+        :param salary_to: максимальная зарплата
+        :param salary_currency: валюта зарплаты
+        :param town: город
+        :param experience: требуемый опыт
+        :param url: ссылка
+        """
         self.name = name
         self.salary = salary
         self.salary_to = salary_to
@@ -108,7 +157,15 @@ class Vacancies:
 
 
 class SuperJobVacancies(Vacancies, SuperJob):
+    """
+    Класс для работы с вакансиями с SuperJob
+    """
     def load_vacancies(self, keyword: str):
+        """
+        Метод для загрузки вакансии из словаря в экземпляр класса SuperJobVacancies
+        :param keyword: наименование вакансии для работы с внутренним методом json_vacancies класса SuperJob
+        :return: список вакансий как экземпляров класса list[Vacancies]
+        """
         list_vacancies = []
         for vacancy in SuperJob.json_vacancies(self, keyword):
             new_vacancy = SuperJobVacancies(name=vacancy["profession"],
@@ -124,7 +181,15 @@ class SuperJobVacancies(Vacancies, SuperJob):
 
 
 class HeadHunterVacancies(Vacancies, HeadHunter):
+    """
+    Класс для работы с вакансиями с HeadHunter
+    """
     def load_vacancies(self, keyword: str):
+        """
+        Метод для загрузки вакансии из словаря в экземпляр класса HeadHunterVacancies
+        :param keyword: наименование вакансии для работы с внутренним методом json_vacancies класса HeadHunter
+        :return: список вакансий как экземпляров класса list[Vacancies]
+        """
         list_vacancies = []
         for vacancy in HeadHunter.json_vacancies(self, keyword):
             try:
@@ -134,19 +199,16 @@ class HeadHunterVacancies(Vacancies, HeadHunter):
                                                   salary_currency=vacancy["salary"]["currency"],
                                                   town=vacancy["area"]["name"],
                                                   experience=vacancy["experience"]["name"],
-                                                  url=vacancy["url"])
+                                                  url=vacancy["alternate_url"])
                 list_vacancies.append(new_vacancy)
             except TypeError:
                 new_vacancy = HeadHunterVacancies(name=vacancy["name"],
                                                   salary=None,
                                                   town=vacancy["area"]["name"],
                                                   experience=vacancy["experience"]["name"],
-                                                  url=vacancy["url"])
+                                                  url=vacancy["alternate_url"])
                 list_vacancies.append(new_vacancy)
 
         return list_vacancies
 
 
-if __name__ == '__main__':
-    foo = SuperJobVacancies()
-    pprint(foo.load_vacancies("Python Разработчик"))
